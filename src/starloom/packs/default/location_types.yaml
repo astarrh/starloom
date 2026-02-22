@@ -1,0 +1,57 @@
+version: "0.1"
+location_types:
+  - name: TRIBAL
+    type: TRIBAL
+    density_min: 1
+    density_max: 4
+    rarity: 1.0
+    affinity:
+      climates: []
+      topographies: []
+    descriptors:
+      - settlement
+      - encampment
+      - village
+      - outpost
+
+  - name: TRADING
+    type: TRADING
+    density_min: 3
+    density_max: 7
+    rarity: 0.8
+    affinity:
+      climates: []
+      topographies: [PLAINS, BASIN, HILLS]
+    descriptors:
+      - market
+      - waystation
+      - port
+      - bazaar
+
+  - name: CITY
+    type: CITY
+    density_min: 5
+    density_max: 9
+    rarity: 0.5
+    affinity:
+      climates: [TEMPERATE, HUMID, RAINY, STEPPE]
+      topographies: [PLAINS, BASIN, HILLS]
+    descriptors:
+      - city
+      - district
+      - borough
+      - quarter
+
+  - name: METROPOLIS
+    type: METROPOLIS
+    density_min: 8
+    density_max: 10
+    rarity: 0.15
+    affinity:
+      climates: [TEMPERATE, HUMID]
+      topographies: [PLAINS, BASIN]
+    descriptors:
+      - megacity
+      - capital
+      - hub
+      - nexus

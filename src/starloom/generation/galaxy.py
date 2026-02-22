@@ -1,17 +1,16 @@
 """Top-level generation pipeline orchestration (design doc §10).
 
-Pipeline steps:
+Pipeline:
   1. Validate config
   2. Derive root seed
   3. Instantiate RNG streams
-  4. Generate solar systems (names + placement)
+  4. Generate solar systems
   5. For each system: generate planets + satellites
   6. For each planet: generate sectors
   7. For each sector: generate locations
   8. For each location: generate nodes
-  9. Assemble immutable Galaxy + ValidationReport
- 10. (Hooks: Phase 05)
- 11. (Constraint validation: Phase 04)
+  9. Run constraint validation → ValidationReport
+ 10. Return Galaxy + ValidationReport
 
 Depth flag:
   "systems"   → stop after step 4 (planets empty)
@@ -23,10 +22,10 @@ Depth flag:
 
 from __future__ import annotations
 
-from dataclasses import replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from starloom.config import CONFIG_VERSION, GalaxyConfig
+from starloom.constraints.rules import validate_galaxy as _run_constraints
 from starloom.domain.models import (
     Culture,
     Galaxy,
@@ -55,7 +54,9 @@ from starloom.rng import (
     normalise_seed,
 )
 
-# Sentinel content-pack version used when no pack is loaded (Phase 03).
+if TYPE_CHECKING:
+    from starloom.content.loader import ContentPack
+
 _NO_PACK_VERSION = "none"
 
 
@@ -64,6 +65,7 @@ def generate_galaxy(
     config: GalaxyConfig | None = None,
     cultures: list[tuple[Culture, float]] | None = None,
     *,
+    content_pack: "ContentPack | None" = None,
     metadata: dict[str, Any] | None = None,
 ) -> tuple[Galaxy, ValidationReport]:
     """Generate a complete Galaxy from a seed.
@@ -71,20 +73,15 @@ def generate_galaxy(
     Parameters
     ----------
     seed:
-        Root seed (int or str).  Strings are NFC-normalised and hashed.
+        Root seed (int or str).
     config:
         GalaxyConfig instance.  Defaults to GalaxyConfig() if not supplied.
     cultures:
-        List of (Culture, weight) pairs used for name generation throughout
-        the galaxy.  If None or empty, fallback indexed names are used.
+        List of (Culture, weight) pairs for name generation.
+    content_pack:
+        Optional validated ContentPack.  When None, built-in fallback rules apply.
     metadata:
         Extra key/value pairs stored in Galaxy.metadata.
-
-    Returns
-    -------
-    (Galaxy, ValidationReport)
-        The generated galaxy and a (currently empty) validation report.
-        Constraint validation is implemented in Phase 04.
     """
     if config is None:
         config = GalaxyConfig()
@@ -92,28 +89,15 @@ def generate_galaxy(
 
     root_seed = normalise_seed(seed)
     cultures = cultures or []
-
     depth = config.depth
+    pack_version = content_pack.version if content_pack else _NO_PACK_VERSION
 
-    # ------------------------------------------------------------------
-    # Instantiate RNG streams
-    # ------------------------------------------------------------------
-    naming_rng = make_rng(root_seed, STREAM_NAMING)
+    naming_rng    = make_rng(root_seed, STREAM_NAMING)
     placement_rng = make_rng(root_seed, STREAM_SYSTEMS)
-    culture_rng = make_rng(root_seed, STREAM_CULTURE)
-    planet_rng = make_rng(root_seed, STREAM_PLANETS)
-    satellite_rng = make_rng(root_seed, STREAM_SATELLITES)
-    sector_rng = make_rng(root_seed, STREAM_SECTORS)
-    location_rng = make_rng(root_seed, STREAM_LOCATIONS)
-    node_rng = make_rng(root_seed, STREAM_NODES)
+    culture_rng   = make_rng(root_seed, STREAM_CULTURE)
 
-    # ------------------------------------------------------------------
-    # Step 4 — Generate solar systems (names + placement)
-    # ------------------------------------------------------------------
     raw_systems, culture_registry = generate_systems(
-        root_seed,
-        config,
-        cultures,
+        root_seed, config, cultures,
         naming_rng=naming_rng,
         placement_rng=placement_rng,
         culture_rng=culture_rng,
@@ -123,31 +107,22 @@ def generate_galaxy(
         galaxy = Galaxy(
             seed=seed,
             config_version=CONFIG_VERSION,
-            content_pack_version=_NO_PACK_VERSION,
+            content_pack_version=pack_version,
             cultures=culture_registry,
             systems=tuple(raw_systems),
-            metadata=_build_metadata(root_seed, config, metadata),
+            metadata=_build_metadata(root_seed, config, content_pack, metadata),
         )
-        return galaxy, ValidationReport()
+        return galaxy, _run_constraints(galaxy, config, content_pack=content_pack)
 
-    # ------------------------------------------------------------------
-    # Steps 5–8 — Planets → sectors → locations → nodes
-    # ------------------------------------------------------------------
     final_systems: list[SolarSystem] = []
 
-    for sys_idx, system in enumerate(raw_systems):
-        # Per-system RNG contexts keep each system's generation independent.
-        sys_planet_rng = make_rng(root_seed, STREAM_PLANETS, system.id)
-        sys_naming_rng = make_rng(root_seed, STREAM_NAMING, system.id)
+    for system in raw_systems:
+        sys_planet_rng    = make_rng(root_seed, STREAM_PLANETS,   system.id)
+        sys_naming_rng    = make_rng(root_seed, STREAM_NAMING,    system.id)
         sys_placement_rng = make_rng(root_seed, STREAM_SATELLITES, system.id)
 
-        # Step 5 — Planets
         raw_planets = generate_planets_for_system(
-            system.id,
-            system.size,
-            root_seed,
-            config,
-            cultures,
+            system.id, system.size, root_seed, config, cultures,
             planet_rng=sys_planet_rng,
             naming_rng=sys_naming_rng,
             placement_rng=sys_placement_rng,
@@ -157,59 +132,52 @@ def generate_galaxy(
             final_systems.append(_replace_planets(system, raw_planets))
             continue
 
-        # Steps 6–8 — Sectors → Locations → Nodes per planet
         final_planets: list[Planet] = []
         for planet in raw_planets:
             planet_sector_rng = make_rng(root_seed, STREAM_SECTORS, planet.id)
-            planet_naming_rng = make_rng(root_seed, STREAM_NAMING, planet.id)
+            planet_naming_rng = make_rng(root_seed, STREAM_NAMING,  planet.id)
 
-            # Step 6 — Sectors
             raw_sectors = generate_sectors_for_planet(
-                planet.id,
-                planet.size.value,
-                config,
-                cultures,
+                planet.id, planet.size.value, config, cultures,
                 sector_rng=planet_sector_rng,
                 naming_rng=planet_naming_rng,
+                content_pack=content_pack,
             )
 
             if depth == "sectors":
                 final_planets.append(_replace_sectors(planet, raw_sectors))
                 continue
 
-            # Steps 7–8 — Locations + Nodes
             final_sectors: list[Sector] = []
             for sector in raw_sectors:
-                sector_loc_rng = make_rng(root_seed, STREAM_LOCATIONS, sector.id)
-                sector_naming_rng = make_rng(root_seed, STREAM_NAMING, sector.id)
+                sector_loc_rng    = make_rng(root_seed, STREAM_LOCATIONS, sector.id)
+                sector_naming_rng = make_rng(root_seed, STREAM_NAMING,    sector.id)
 
-                # Step 7 — Locations
                 raw_locations = generate_locations_for_sector(
-                    sector.id,
-                    sector.density,
-                    config,
-                    cultures,
+                    sector.id, sector.density, config, cultures,
                     location_rng=sector_loc_rng,
                     naming_rng=sector_naming_rng,
+                    content_pack=content_pack,
+                    topography=sector.topography,
+                    climate=sector.climate,
                 )
 
                 if depth == "locations":
                     final_sectors.append(_replace_locations(sector, raw_locations))
                     continue
 
-                # Step 8 — Nodes
                 final_locations: list[Location] = []
                 for location in raw_locations:
-                    loc_node_rng = make_rng(root_seed, STREAM_NODES, location.id)
+                    loc_node_rng   = make_rng(root_seed, STREAM_NODES,  location.id)
                     loc_naming_rng = make_rng(root_seed, STREAM_NAMING, location.id)
 
                     raw_nodes = generate_nodes_for_location(
-                        location.id,
-                        sector.density,
-                        config,
-                        cultures,
+                        location.id, sector.density, config, cultures,
                         node_rng=loc_node_rng,
                         naming_rng=loc_naming_rng,
+                        content_pack=content_pack,
+                        topography=sector.topography,
+                        climate=sector.climate,
                     )
                     final_locations.append(_replace_nodes(location, raw_nodes))
 
@@ -222,41 +190,32 @@ def generate_galaxy(
     galaxy = Galaxy(
         seed=seed,
         config_version=CONFIG_VERSION,
-        content_pack_version=_NO_PACK_VERSION,
+        content_pack_version=pack_version,
         cultures=culture_registry,
         systems=tuple(final_systems),
-        metadata=_build_metadata(root_seed, config, metadata),
+        metadata=_build_metadata(root_seed, config, content_pack, metadata),
     )
-    return galaxy, ValidationReport()
+    return galaxy, _run_constraints(galaxy, config, content_pack=content_pack)
 
 
 # ---------------------------------------------------------------------------
-# Immutable assembly helpers (frozen dataclasses can't be mutated in-place)
+# Immutable assembly helpers
 # ---------------------------------------------------------------------------
 
 
 def _replace_planets(system: SolarSystem, planets: list[Planet]) -> SolarSystem:
     return SolarSystem(
-        id=system.id,
-        name=system.name,
-        size=system.size,
-        x=system.x,
-        y=system.y,
-        z=system.z,
-        culture_ids=system.culture_ids,
-        planets=tuple(planets),
+        id=system.id, name=system.name, size=system.size,
+        x=system.x, y=system.y, z=system.z,
+        culture_ids=system.culture_ids, planets=tuple(planets),
     )
 
 
 def _replace_sectors(planet: Planet, sectors: list[Sector]) -> Planet:
     return Planet(
-        id=planet.id,
-        name=planet.name,
-        size=planet.size,
+        id=planet.id, name=planet.name, size=planet.size,
         classification=planet.classification,
-        x=planet.x,
-        y=planet.y,
-        z=planet.z,
+        x=planet.x, y=planet.y, z=planet.z,
         parent_planet_id=planet.parent_planet_id,
         distinctiveness=planet.distinctiveness,
         sectors=tuple(sectors),
@@ -265,25 +224,20 @@ def _replace_sectors(planet: Planet, sectors: list[Sector]) -> Planet:
 
 def _replace_locations(sector: Sector, locations: list[Location]) -> Sector:
     return Sector(
-        id=sector.id,
-        name=sector.name,
-        topography=sector.topography,
-        climate=sector.climate,
+        id=sector.id, name=sector.name,
+        topography=sector.topography, climate=sector.climate,
         density=sector.density,
         urbanization=sector.urbanization,
-        hostility=sector.hostility,
-        remoteness=sector.remoteness,
+        hostility=sector.hostility, remoteness=sector.remoteness,
         locations=tuple(locations),
     )
 
 
 def _replace_nodes(location: Location, nodes: list[Node]) -> Location:
     return Location(
-        id=location.id,
-        name=location.name,
+        id=location.id, name=location.name,
         location_type=location.location_type,
-        size=location.size,
-        features=location.features,
+        size=location.size, features=location.features,
         distinctiveness=location.distinctiveness,
         nodes=tuple(nodes),
     )
@@ -292,13 +246,16 @@ def _replace_nodes(location: Location, nodes: list[Node]) -> Location:
 def _build_metadata(
     root_seed: int,
     config: GalaxyConfig,
+    content_pack: "ContentPack | None",
     extra: dict[str, Any] | None,
 ) -> dict[str, Any]:
     meta: dict[str, Any] = {
         "root_seed_int": root_seed,
-        "repro_mode": config.repro_mode.value,
-        "depth": config.depth,
+        "repro_mode":    config.repro_mode.value,
+        "depth":         config.depth,
     }
+    if content_pack:
+        meta["pack_hash"] = content_pack.pack_hash
     if extra:
         meta.update(extra)
     return meta

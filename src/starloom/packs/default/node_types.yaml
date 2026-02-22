@@ -1,0 +1,12 @@
+version: "0.1"
+node_types:
+  - name: GENERIC
+    type: GENERIC
+    density_min: 1
+    density_max: 10
+    rarity: 1.0
+    in_town: true
+    name_style: BAR
+    affinity:
+      climates: []
+      topographies: []

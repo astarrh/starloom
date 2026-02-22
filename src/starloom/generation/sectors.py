@@ -11,36 +11,34 @@ from starloom.generation.naming import generate_entity_name
 
 if TYPE_CHECKING:
     from starloom.config import GalaxyConfig
+    from starloom.content.loader import ContentPack
 
 # ---------------------------------------------------------------------------
 # Sector count per planet size (design doc §11 — Sectors)
 # ---------------------------------------------------------------------------
 
 _SECTOR_COUNT_RANGE: dict[int, tuple[int, int]] = {
-    1: (2, 5),   # TINY
-    2: (4, 8),   # SMALL
-    3: (6, 12),  # MEDIUM
-    4: (10, 16), # LARGE
-    5: (18, 21), # ENORMOUS
+    1: (2, 5),    # TINY
+    2: (4, 8),    # SMALL
+    3: (6, 12),   # MEDIUM
+    4: (10, 16),  # LARGE
+    5: (18, 21),  # ENORMOUS
 }
 
 # ---------------------------------------------------------------------------
-# Character axis base scores (design doc §9.6).
-# Phase 03 uses a built-in table; Phase 04 will load these from content pack.
+# Built-in character axis fallbacks (used when no content pack is provided)
 # ---------------------------------------------------------------------------
 
-# Hostility base scores per climate (0.0 = benign, 1.0 = lethal)
 _CLIMATE_HOSTILITY: dict[ClimateType, float] = {
-    ClimateType.VOLCANIC: 0.95,
-    ClimateType.ARID:     0.70,
-    ClimateType.STEPPE:   0.40,
-    ClimateType.TEMPERATE:0.15,
-    ClimateType.HUMID:    0.20,
-    ClimateType.RAINY:    0.30,
-    ClimateType.FROZEN:   0.75,
+    ClimateType.VOLCANIC:  0.95,
+    ClimateType.ARID:      0.70,
+    ClimateType.STEPPE:    0.40,
+    ClimateType.TEMPERATE: 0.15,
+    ClimateType.HUMID:     0.20,
+    ClimateType.RAINY:     0.30,
+    ClimateType.FROZEN:    0.75,
 }
 
-# Remoteness base scores per topography (0.0 = accessible, 1.0 = isolated)
 _TOPOGRAPHY_REMOTENESS: dict[TopographyType, float] = {
     TopographyType.PLAINS: 0.10,
     TopographyType.BASIN:  0.20,
@@ -60,12 +58,31 @@ def _urbanization(density: int) -> float:
     return 0.05 + (density - 1) / 9.0 * 0.90
 
 
-def _compute_hostility(climate: ClimateType) -> float:
+def _compute_hostility(climate: ClimateType, pack: "ContentPack | None" = None,
+                        topo: TopographyType | None = None) -> float:
+    if pack is not None and topo is not None:
+        entry = pack.sector_type(topo, climate)
+        if entry is not None:
+            return entry.hostility
     return _CLIMATE_HOSTILITY[climate]
 
 
-def _compute_remoteness(topography: TopographyType) -> float:
+def _compute_remoteness(topography: TopographyType, pack: "ContentPack | None" = None,
+                         climate: ClimateType | None = None) -> float:
+    if pack is not None and climate is not None:
+        entry = pack.sector_type(topography, climate)
+        if entry is not None:
+            return entry.remoteness
     return _TOPOGRAPHY_REMOTENESS[topography]
+
+
+def _get_max_density(topography: TopographyType, climate: ClimateType,
+                     pack: "ContentPack | None") -> int:
+    if pack is not None:
+        entry = pack.sector_type(topography, climate)
+        if entry is not None:
+            return entry.max_density
+    return 10
 
 
 # ---------------------------------------------------------------------------
@@ -81,6 +98,7 @@ def generate_sectors_for_planet(
     *,
     sector_rng: random.Random,
     naming_rng: random.Random,
+    content_pack: "ContentPack | None" = None,
 ) -> list[Sector]:
     """Generate all sectors for one planet.
 
@@ -98,6 +116,9 @@ def generate_sectors_for_planet(
         Isolated Random for sector decisions.
     naming_rng:
         Isolated Random for name generation.
+    content_pack:
+        Optional validated ContentPack.  When provided, max_density,
+        hostility, and remoteness are read from pack data.
     """
     lo, hi = _SECTOR_COUNT_RANGE[planet_size_value]
     count = sector_rng.randint(lo, hi)
@@ -109,12 +130,12 @@ def generate_sectors_for_planet(
         topography: TopographyType = sector_rng.choice(_ALL_TOPOGRAPHIES)
         climate: ClimateType = sector_rng.choice(_ALL_CLIMATES)
 
-        # Density: 1–10 (Phase 04 will cap by sector_type.max_density from content pack)
-        density = sector_rng.randint(1, 10)
+        max_d = _get_max_density(topography, climate, content_pack)
+        density = sector_rng.randint(1, max_d)
 
         urbanization = _urbanization(density)
-        hostility = _compute_hostility(climate)
-        remoteness = _compute_remoteness(topography)
+        hostility = _compute_hostility(climate, content_pack, topography)
+        remoteness = _compute_remoteness(topography, content_pack, climate)
 
         if cultures:
             name = generate_entity_name(cultures, NameStyle.GENERIC, naming_rng)
@@ -131,7 +152,7 @@ def generate_sectors_for_planet(
                 urbanization=round(urbanization, 4),
                 hostility=round(hostility, 4),
                 remoteness=round(remoteness, 4),
-                locations=(),  # filled by location generation
+                locations=(),
             )
         )
 

@@ -1,0 +1,26 @@
+version: "0.1"
+planet_classes:
+  - name: TELLURIC
+    state: solid
+    temperature_range: [-60, 60]
+    gravity_range: [0.3, 2.0]
+  - name: GASEOUS
+    state: gas
+    temperature_range: [-200, 200]
+    gravity_range: [1.5, 10.0]
+  - name: ICE
+    state: solid
+    temperature_range: [-250, -30]
+    gravity_range: [0.1, 1.5]
+  - name: LAVA
+    state: solid
+    temperature_range: [300, 1200]
+    gravity_range: [0.5, 3.0]
+  - name: LIQUID
+    state: liquid
+    temperature_range: [-10, 120]
+    gravity_range: [0.2, 2.5]
+  - name: ASTEROID
+    state: solid
+    temperature_range: [-270, 400]
+    gravity_range: [0.001, 0.3]

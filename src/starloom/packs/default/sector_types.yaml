@@ -1,0 +1,262 @@
+version: "0.1"
+# Each entry defines a topography × climate combination.
+# max_density: 1–10. hostility and remoteness override the built-in defaults.
+sector_types:
+  # CANYON × climates
+  - topography: CANYON
+    climate: VOLCANIC
+    max_density: 4
+    hostility: 0.98
+    remoteness: 0.80
+  - topography: CANYON
+    climate: ARID
+    max_density: 5
+    hostility: 0.75
+    remoteness: 0.70
+  - topography: CANYON
+    climate: STEPPE
+    max_density: 6
+    hostility: 0.45
+    remoteness: 0.65
+  - topography: CANYON
+    climate: TEMPERATE
+    max_density: 7
+    hostility: 0.20
+    remoteness: 0.60
+  - topography: CANYON
+    climate: HUMID
+    max_density: 7
+    hostility: 0.25
+    remoteness: 0.62
+  - topography: CANYON
+    climate: RAINY
+    max_density: 6
+    hostility: 0.35
+    remoteness: 0.65
+  - topography: CANYON
+    climate: FROZEN
+    max_density: 4
+    hostility: 0.80
+    remoteness: 0.75
+
+  # BASIN × climates
+  - topography: BASIN
+    climate: VOLCANIC
+    max_density: 3
+    hostility: 0.95
+    remoteness: 0.30
+  - topography: BASIN
+    climate: ARID
+    max_density: 6
+    hostility: 0.65
+    remoteness: 0.20
+  - topography: BASIN
+    climate: STEPPE
+    max_density: 8
+    hostility: 0.35
+    remoteness: 0.15
+  - topography: BASIN
+    climate: TEMPERATE
+    max_density: 10
+    hostility: 0.10
+    remoteness: 0.15
+  - topography: BASIN
+    climate: HUMID
+    max_density: 9
+    hostility: 0.15
+    remoteness: 0.18
+  - topography: BASIN
+    climate: RAINY
+    max_density: 9
+    hostility: 0.25
+    remoteness: 0.20
+  - topography: BASIN
+    climate: FROZEN
+    max_density: 5
+    hostility: 0.72
+    remoteness: 0.25
+
+  # KARST × climates
+  - topography: KARST
+    climate: VOLCANIC
+    max_density: 3
+    hostility: 0.96
+    remoteness: 0.55
+  - topography: KARST
+    climate: ARID
+    max_density: 5
+    hostility: 0.68
+    remoteness: 0.50
+  - topography: KARST
+    climate: STEPPE
+    max_density: 7
+    hostility: 0.40
+    remoteness: 0.48
+  - topography: KARST
+    climate: TEMPERATE
+    max_density: 8
+    hostility: 0.15
+    remoteness: 0.45
+  - topography: KARST
+    climate: HUMID
+    max_density: 8
+    hostility: 0.20
+    remoteness: 0.48
+  - topography: KARST
+    climate: RAINY
+    max_density: 7
+    hostility: 0.30
+    remoteness: 0.50
+  - topography: KARST
+    climate: FROZEN
+    max_density: 4
+    hostility: 0.76
+    remoteness: 0.55
+
+  # PLAINS × climates
+  - topography: PLAINS
+    climate: VOLCANIC
+    max_density: 3
+    hostility: 0.94
+    remoteness: 0.10
+  - topography: PLAINS
+    climate: ARID
+    max_density: 6
+    hostility: 0.68
+    remoteness: 0.10
+  - topography: PLAINS
+    climate: STEPPE
+    max_density: 9
+    hostility: 0.38
+    remoteness: 0.08
+  - topography: PLAINS
+    climate: TEMPERATE
+    max_density: 10
+    hostility: 0.12
+    remoteness: 0.08
+  - topography: PLAINS
+    climate: HUMID
+    max_density: 10
+    hostility: 0.18
+    remoteness: 0.10
+  - topography: PLAINS
+    climate: RAINY
+    max_density: 9
+    hostility: 0.28
+    remoteness: 0.12
+  - topography: PLAINS
+    climate: FROZEN
+    max_density: 5
+    hostility: 0.70
+    remoteness: 0.12
+
+  # HILLS × climates
+  - topography: HILLS
+    climate: VOLCANIC
+    max_density: 3
+    hostility: 0.95
+    remoteness: 0.40
+  - topography: HILLS
+    climate: ARID
+    max_density: 6
+    hostility: 0.70
+    remoteness: 0.35
+  - topography: HILLS
+    climate: STEPPE
+    max_density: 8
+    hostility: 0.42
+    remoteness: 0.32
+  - topography: HILLS
+    climate: TEMPERATE
+    max_density: 9
+    hostility: 0.16
+    remoteness: 0.30
+  - topography: HILLS
+    climate: HUMID
+    max_density: 9
+    hostility: 0.22
+    remoteness: 0.33
+  - topography: HILLS
+    climate: RAINY
+    max_density: 8
+    hostility: 0.32
+    remoteness: 0.35
+  - topography: HILLS
+    climate: FROZEN
+    max_density: 5
+    hostility: 0.73
+    remoteness: 0.38
+
+  # CLIFFS × climates
+  - topography: CLIFFS
+    climate: VOLCANIC
+    max_density: 2
+    hostility: 0.98
+    remoteness: 0.80
+  - topography: CLIFFS
+    climate: ARID
+    max_density: 4
+    hostility: 0.72
+    remoteness: 0.75
+  - topography: CLIFFS
+    climate: STEPPE
+    max_density: 5
+    hostility: 0.44
+    remoteness: 0.72
+  - topography: CLIFFS
+    climate: TEMPERATE
+    max_density: 6
+    hostility: 0.18
+    remoteness: 0.70
+  - topography: CLIFFS
+    climate: HUMID
+    max_density: 6
+    hostility: 0.24
+    remoteness: 0.72
+  - topography: CLIFFS
+    climate: RAINY
+    max_density: 5
+    hostility: 0.34
+    remoteness: 0.74
+  - topography: CLIFFS
+    climate: FROZEN
+    max_density: 3
+    hostility: 0.78
+    remoteness: 0.78
+
+  # PEAKS × climates
+  - topography: PEAKS
+    climate: VOLCANIC
+    max_density: 1
+    hostility: 0.99
+    remoteness: 0.95
+  - topography: PEAKS
+    climate: ARID
+    max_density: 3
+    hostility: 0.74
+    remoteness: 0.92
+  - topography: PEAKS
+    climate: STEPPE
+    max_density: 4
+    hostility: 0.46
+    remoteness: 0.88
+  - topography: PEAKS
+    climate: TEMPERATE
+    max_density: 5
+    hostility: 0.20
+    remoteness: 0.85
+  - topography: PEAKS
+    climate: HUMID
+    max_density: 5
+    hostility: 0.26
+    remoteness: 0.87
+  - topography: PEAKS
+    climate: RAINY
+    max_density: 4
+    hostility: 0.36
+    remoteness: 0.88
+  - topography: PEAKS
+    climate: FROZEN
+    max_density: 2
+    hostility: 0.82
+    remoteness: 0.93
