@@ -41,6 +41,15 @@ from starloom.generation.nodes import generate_nodes_for_location
 from starloom.generation.planets import generate_planets_for_system
 from starloom.generation.sectors import generate_sectors_for_planet
 from starloom.generation.systems import generate_systems
+from starloom.hooks import (
+    HookMap,
+    run_hook_galaxy,
+    run_hook_location,
+    run_hook_node,
+    run_hook_planet,
+    run_hook_sector,
+    run_hook_system,
+)
 from starloom.rng import (
     STREAM_CULTURE,
     STREAM_LOCATIONS,
@@ -66,6 +75,7 @@ def generate_galaxy(
     cultures: list[tuple[Culture, float]] | None = None,
     *,
     content_pack: "ContentPack | None" = None,
+    hooks: HookMap | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> tuple[Galaxy, ValidationReport]:
     """Generate a complete Galaxy from a seed.
@@ -80,12 +90,21 @@ def generate_galaxy(
         List of (Culture, weight) pairs for name generation.
     content_pack:
         Optional validated ContentPack.  When None, built-in fallback rules apply.
+    hooks:
+        Optional HookMap.  When provided, callables are invoked after each
+        pipeline stage.  In repro_mode="strict", any non-empty HookMap raises
+        HookError.
     metadata:
         Extra key/value pairs stored in Galaxy.metadata.
     """
     if config is None:
         config = GalaxyConfig()
     config.validate()
+
+    # Validate hooks against repro_mode
+    from starloom.domain.types import ReproMode
+    if hooks is not None and config.repro_mode == ReproMode.STRICT:
+        hooks.validate_strict()
 
     root_seed = normalise_seed(seed)
     cultures = cultures or []
@@ -104,6 +123,8 @@ def generate_galaxy(
     )
 
     if depth == "systems":
+        for system in raw_systems:
+            run_hook_system(hooks, system)
         galaxy = Galaxy(
             seed=seed,
             config_version=CONFIG_VERSION,
@@ -112,6 +133,7 @@ def generate_galaxy(
             systems=tuple(raw_systems),
             metadata=_build_metadata(root_seed, config, content_pack, metadata),
         )
+        run_hook_galaxy(hooks, galaxy)
         return galaxy, _run_constraints(galaxy, config, content_pack=content_pack)
 
     final_systems: list[SolarSystem] = []
@@ -129,7 +151,11 @@ def generate_galaxy(
         )
 
         if depth == "planets":
-            final_systems.append(_replace_planets(system, raw_planets))
+            assembled_system = _replace_planets(system, raw_planets)
+            run_hook_system(hooks, assembled_system)
+            for planet in assembled_system.planets:
+                run_hook_planet(hooks, planet)
+            final_systems.append(assembled_system)
             continue
 
         final_planets: list[Planet] = []
@@ -145,7 +171,11 @@ def generate_galaxy(
             )
 
             if depth == "sectors":
-                final_planets.append(_replace_sectors(planet, raw_sectors))
+                assembled_planet = _replace_sectors(planet, raw_sectors)
+                run_hook_planet(hooks, assembled_planet)
+                for sector in assembled_planet.sectors:
+                    run_hook_sector(hooks, sector)
+                final_planets.append(assembled_planet)
                 continue
 
             final_sectors: list[Sector] = []
@@ -163,7 +193,11 @@ def generate_galaxy(
                 )
 
                 if depth == "locations":
-                    final_sectors.append(_replace_locations(sector, raw_locations))
+                    assembled_sector = _replace_locations(sector, raw_locations)
+                    run_hook_sector(hooks, assembled_sector)
+                    for location in assembled_sector.locations:
+                        run_hook_location(hooks, location)
+                    final_sectors.append(assembled_sector)
                     continue
 
                 final_locations: list[Location] = []
@@ -179,13 +213,23 @@ def generate_galaxy(
                         topography=sector.topography,
                         climate=sector.climate,
                     )
-                    final_locations.append(_replace_nodes(location, raw_nodes))
+                    assembled_location = _replace_nodes(location, raw_nodes)
+                    for node in assembled_location.nodes:
+                        run_hook_node(hooks, node)
+                    run_hook_location(hooks, assembled_location)
+                    final_locations.append(assembled_location)
 
-                final_sectors.append(_replace_locations(sector, final_locations))
+                assembled_sector = _replace_locations(sector, final_locations)
+                run_hook_sector(hooks, assembled_sector)
+                final_sectors.append(assembled_sector)
 
-            final_planets.append(_replace_sectors(planet, final_sectors))
+            assembled_planet = _replace_sectors(planet, final_sectors)
+            run_hook_planet(hooks, assembled_planet)
+            final_planets.append(assembled_planet)
 
-        final_systems.append(_replace_planets(system, final_planets))
+        assembled_system = _replace_planets(system, final_planets)
+        run_hook_system(hooks, assembled_system)
+        final_systems.append(assembled_system)
 
     galaxy = Galaxy(
         seed=seed,
@@ -195,6 +239,7 @@ def generate_galaxy(
         systems=tuple(final_systems),
         metadata=_build_metadata(root_seed, config, content_pack, metadata),
     )
+    run_hook_galaxy(hooks, galaxy)
     return galaxy, _run_constraints(galaxy, config, content_pack=content_pack)
 
 
