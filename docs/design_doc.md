@@ -48,10 +48,10 @@ This document defines architecture and constraints before implementation. The pa
 ---
 
 ## 5) Package Layout
-Primary package name: `pq_galaxy`.
+Primary package name: `starloom`.
 
 ```
-pq_galaxy/
+starloom/
   __init__.py
   api.py                  # public entry points
   config.py               # dataclass-based config models and validators (no mandatory external deps)
@@ -538,7 +538,7 @@ Three paths produce a `Culture` or `CultureFamily`. All three return identical, 
 
 **Path 1: Example-driven (developer or player provides examples)**
 ```python
-from pq_galaxy.culture import create_culture_family
+from starloom.culture import create_culture_family
 
 family = create_culture_family(
     examples=["Valdris", "Korveth", "Almara", "Selindra"],
@@ -555,7 +555,7 @@ This path is suitable for player-facing name input ("name a few worlds and we'll
 
 **Path 2: Fully procedural (seed-driven, no examples)**
 ```python
-from pq_galaxy.culture import generate_culture_family
+from starloom.culture import generate_culture_family
 
 family = generate_culture_family(
     seed=99887,
@@ -569,7 +569,7 @@ The seed is used to generate the base example set internally before deriving the
 
 **Path 3: Single manual culture (full control)**
 ```python
-from pq_galaxy.culture import create_culture
+from starloom.culture import create_culture
 
 culture = create_culture(
     examples=["Zhal", "Zhora", "Zhelik", "Zhaveth"],
@@ -628,7 +628,7 @@ Template strings use a `+` placeholder replaced with a generated name fragment a
 The culture system exposes a standalone name generation utility callable outside the generation pipeline. This is intended for developers who need culturally consistent names at runtime — NPC names, faction names, ship names, quest-giver names — without running a full generation pass.
 
 ```python
-from pq_galaxy.culture import generate_name
+from starloom.culture import generate_name
 
 # Generate a personal name consistent with a planet's dominant culture
 npc_name = generate_name(
@@ -760,7 +760,7 @@ In CI, treat all `ERROR` codes as build-breaking. Optionally treat selected `WAR
 ### 14.1 Generation
 
 ```python
-from pq_galaxy.api import generate_galaxy, load_content_pack
+from starloom.api import generate_galaxy, load_content_pack
 
 content = load_content_pack("./packs/classic")
 galaxy, report = generate_galaxy(
@@ -772,7 +772,7 @@ galaxy, report = generate_galaxy(
 
 Lower-level API for partial generation:
 ```python
-from pq_galaxy.api import generate_system, generate_planet
+from starloom.api import generate_system, generate_planet
 
 system = generate_system(seed="my-campaign-001", index=7, config=config, content_pack=content)
 planet = generate_planet(seed="my-campaign-001", system_id="sys-0007", index=3, ...)
@@ -780,16 +780,16 @@ planet = generate_planet(seed="my-campaign-001", system_id="sys-0007", index=3, 
 
 Validation only:
 ```python
-from pq_galaxy.api import validate_galaxy
+from starloom.api import validate_galaxy
 report = validate_galaxy(galaxy, content_pack=content)
 ```
 
-### 14.2 Geometry Helpers (pq_galaxy.geometry)
+### 14.2 Geometry Helpers (starloom.geometry)
 
 Pure functions that accept a `Galaxy` object and return filtered or sorted results. They use only (x, y) for distance calculations and have no side effects. The developer holds the `Galaxy` and passes it in — the module stores nothing.
 
 ```python
-from pq_galaxy.geometry import systems_within_radius, nearest_systems, system_distance
+from starloom.geometry import systems_within_radius, nearest_systems, system_distance
 
 # All systems within a discovery radius of a known system
 reachable = systems_within_radius(galaxy, origin="sys-0007", radius=350.0)
@@ -805,7 +805,7 @@ d = system_distance(galaxy, "sys-0007", "sys-0042")
 ```
 
 ```python
-from pq_galaxy.geometry import planets_by_distinctiveness
+from starloom.geometry import planets_by_distinctiveness
 
 # Most distinctive planets across the whole galaxy, descending
 landmarks = planets_by_distinctiveness(galaxy, threshold=0.8)
@@ -817,7 +817,7 @@ landmarks = planets_by_distinctiveness(galaxy, systems=reachable, threshold=0.8)
 Character axis queries let developers find sectors matching conditions relevant to their game systems — without the generator knowing what those systems are:
 
 ```python
-from pq_galaxy.geometry import sectors_by_character, nodes_by_character
+from starloom.geometry import sectors_by_character, nodes_by_character
 
 # Sectors suitable for a lawless frontier faction
 frontier = sectors_by_character(galaxy, remoteness_min=0.7, urbanization_max=0.3)
@@ -835,12 +835,12 @@ All character axis parameters are optional and combinable. Results are returned 
 
 These helpers are the intended primitive for implementing player discovery radius progression and for seeding external systems (factions, resources, encounter tables) with plausible locations. Dynamic game state — which systems have been visited, what the current radius is, which faction controls which sector — is the developer's responsibility and lives outside this package.
 
-### 14.3 Post-Generation Hooks (pq_galaxy.hooks)
+### 14.3 Post-Generation Hooks (starloom.hooks)
 
 Hooks allow developers to run their own logic immediately after each pipeline stage, at generation time, without modifying the generator. A hook receives the freshly generated entity and may do anything with it — populate external data structures, assign faction ownership, seed resource tables — but returns nothing and has no effect on the generator's output.
 
 ```python
-from pq_galaxy.hooks import HookMap
+from starloom.hooks import HookMap
 
 def assign_faction(planet):
     if planet.distinctiveness > 0.8:
